@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""
+NexuIO Pro – Advanced RF Communication System (CLI Edition)
+Professional multi-band support · Real-time logging
+Runs in any terminal, no GUI dependencies.
+"""
+
+import threading
+import time
+import random
+from datetime import datetime
+
+# ANSI color codes for better terminal readability
+RESET = "\033[0m"
+BOLD = "\033[1m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+MAGENTA = "\033[95m"
+CYAN = "\033[96m"
+WHITE = "\033[97m"
+DIM = "\033[2m"
+
+CATEGORY_COLORS = {
+    "Communications": BLUE,
+    "Networks":       GREEN,
+    "Navigation":     YELLOW,
+    "Vehicles":       MAGENTA,
+    "Drones":         CYAN,
+    "Security":       RED,
+    "Industrial":     YELLOW,
+    "Medical":        GREEN,
+    "Entertainment":  CYAN,
+    "Broadcast":      RED,
+}
+
+
+class NexuIOCLI:
+    def __init__(self):
+        self.is_transmitting = False
+        self.current_frequency = "433.92"
+        self.current_device = ""
+        self.transmit_power = 50
+        self.modulation = "OOK"
+        self.running = True
+
+    # ------------------------------------------------------------------
+    #  Logging & UI Helpers
+    # ------------------------------------------------------------------
+    def _log(self, message: str, level: str = "INFO"):
+        """Print a timestamped log message to terminal."""
+        ts = datetime.now().strftime("%H:%M:%S")
+        if level == "ERROR":
+            prefix = f"{RED}[{ts}] ERROR{RESET}"
+        elif level == "SUCCESS":
+            prefix = f"{GREEN}[{ts}] {BOLD}✓{RESET}"
+        elif level == "WARNING":
+            prefix = f"{YELLOW}[{ts}] ⚠{RESET}"
+        else:
+            prefix = f"{DIM}[{ts}]{RESET}"
+        print(f"{prefix} {message}")
+
+    def _print_header(self, title: str):
+        """Print a stylised header."""
+        print(f"\n{BOLD}{BLUE}─── {title} ───{RESET}")
+
+    def _print_menu(self, options: dict):
+        """Print a numbered menu from a dict."""
+        for key, value in options.items():
+            print(f"  {BLUE}{key}{RESET}. {value}")
+
+    def _input_int(self, prompt: str, min_val: int, max_val: int) -> int:
+        """Safe integer input with range checking."""
+        while True:
+            try:
+                val = int(input(prompt))
+                if min_val <= val <= max_val:
+                    return val
+                print(f"{RED}Please enter a number between {min_val} and {max_val}.{RESET}")
+            except ValueError:
+                print(f"{RED}Invalid number.{RESET}")
+
+    def _input_choice(self, prompt: str, choices: list) -> str:
+        """Let user select from a list of choices."""
+        while True:
+            inp = input(prompt).strip()
+            if inp in choices:
+                return inp
+            print(f"{RED}Invalid choice. Options: {', '.join(choices)}{RESET}")
+
+    # ------------------------------------------------------------------
+    #  Core RF Simulation Functions (same as original)
+    # ------------------------------------------------------------------
+    def _start_transmission(self):
+        """Start transmitting in a background thread."""
+        if self.is_transmitting:
+            self._log("Already transmitting.", "WARNING")
+            return
+        self.is_transmitting = True
+        self._log(f"TX START · {self.current_frequency} MHz · {self.modulation} · {self.transmit_power}%", "SUCCESS")
+        threading.Thread(target=self._sim_tx, daemon=True).start()
+
+    def _stop_transmission(self):
+        """Stop transmitting."""
+        if not self.is_transmitting:
+            self._log("No active transmission.", "WARNING")
+            return
+        self.is_transmitting = False
+        self._log("TX STOPPED", "SUCCESS")
+
+    def _sim_tx(self):
+        """Simulate ongoing packet transmission."""
+        pkt = 0
+        while self.is_transmitting:
+            if pkt % 10 == 0:
+                self._log(f"  pkt #{pkt:04d}  data=TX_{random.randint(1000,9999)}")
+            pkt += 1
+            time.sleep(0.1)
+
+    def _sim_reception(self, device: str, freq: str):
+        """Simulate receiving data."""
+        self._log(f"RECEPTION START · {device} @ {freq} MHz", "SUCCESS")
+        for _ in range(15):
+            if random.random() > 0.7:
+                self._log(f"  RX · sig={random.randint(20,95)}% data=RX_{random.randint(1000,9999)} proto={random.choice(['OOK','FSK','ASK'])}")
+            time.sleep(0.4)
+        self._log("Reception finished.")
+
+    def _sim_analysis(self, device: str, freq: str):
+        """Perform spectrum analysis simulation."""
+        self._log(f"─── Analysis: {device} @ {freq} MHz ───", "INFO")
+        fields = {
+            "Signal Strength": f"{random.randint(30,98)} %",
+            "Noise Floor": f"{random.randint(-120,-80)} dBm",
+            "Bandwidth": random.choice(["1 MHz", "5 MHz", "20 MHz"]),
+            "Modulation": random.choice(["OOK", "FSK", "ASK", "PSK"]),
+        }
+        for k, v in fields.items():
+            self._log(f"   {k:<18} {v}")
+
+    # ------------------------------------------------------------------
+    #  Device Selection and Category Menus
+    # ------------------------------------------------------------------
+    def _get_categories(self):
+        """Return available categories and their devices."""
+        return {
+            "Communications": [
+                "Smartphones", "2G Phones", "3G Phones", "4G Phones", "5G Phones",
+                "Sat Phones", "Walkie-Talkies", "Police VHF", "Ambulance UHF",
+                "Military Comms", "Marine Comms", "CB Radio", "PMR", "TETRA"
+            ],
+            "Networks": [
+                "Wi-Fi Routers", "Wi-Fi APs", "Wi-Fi Extenders", "4G Modem",
+                "5G Modem", "Bluetooth", "BLE Devices", "NFC", "RFID",
+                "ZigBee", "Z-Wave", "LoRa", "IoT Devices"
+            ],
+            "Navigation": [
+                "GPS Receivers", "Car GPS", "Aircraft GPS", "Vehicle Trackers",
+                "Animal Trackers", "Child Trackers", "Luggage Trackers"
+            ],
+            "Vehicles": [
+                "Keyless Entry", "SmartKey", "Remote Lock", "Car Alarms",
+                "TPMS Sensors", "RF Engine Control", "Smart Parking"
+            ],
+            "Drones": [
+                "Consumer Drones", "Pro Drones", "FPV Transmission",
+                "Telemetry Links", "Drone GPS", "RTH Systems"
+            ],
+            "Security": [
+                "Wi-Fi Cameras", "Smart Locks", "Smart Doorbells",
+                "RF Motion Sensors", "Door Sensors", "Wireless Fire Sensors"
+            ],
+            "Industrial": [
+                "Crane Remotes", "Industrial Telemetry", "Smart Meters",
+                "LoRa Sensors", "Industrial RFID"
+            ],
+            "Medical": [
+                "BT Blood Pressure", "BT Glucose Meter", "BT ECG",
+                "Health Wearables", "Wireless EMS"
+            ],
+            "Entertainment": [
+                "RF Remotes", "Wi-Fi Speakers", "PlayStation Controller",
+                "Xbox Controller", "RC Cars", "Wireless Microphones"
+            ],
+            "Broadcast": [
+                "FM Radio", "AM Radio", "Shortwave", "Analog TV",
+                "Ham Radio", "PMR446", "FM Transmitters"
+            ]
+        }
+
+    def _default_freq(self, device: str) -> str:
+        mapping = {
+            "Smartphones": "2400", "Wi-Fi Routers": "2412",
+            "Bluetooth": "2402", "GPS Receivers": "1575.42",
+            "Keyless Entry": "433.92", "RF Remotes": "315.00",
+            "FM Radio": "98.00", "Walkie-Talkies": "446.00",
+        }
+        return mapping.get(device, "433.92")
+
+    def _select_device(self):
+        """Interactive device selection menu."""
+        categories = self._get_categories()
+        cat_names = list(categories.keys())
+        print()
+        for idx, cat in enumerate(cat_names, 1):
+            print(f"  {BLUE}{idx}{RESET}. {cat}")
+        print(f"  {BLUE}0{RESET}. Back to main menu")
+
+        cat_choice = self._input_int("\nSelect category: ", 0, len(cat_names))
+        if cat_choice == 0:
+            return None
+
+        category = cat_names[cat_choice - 1]
+        devices = categories[category]
+        print(f"\n{BOLD}{CATEGORY_COLORS.get(category, WHITE)}Devices in {category}:{RESET}")
+        for idx, dev in enumerate(devices, 1):
+            print(f"  {BLUE}{idx}{RESET}. {dev}")
+        print(f"  {BLUE}0{RESET}. Back")
+
+        dev_choice = self._input_int("\nSelect device: ", 0, len(devices))
+        if dev_choice == 0:
+            return None
+        device = devices[dev_choice - 1]
+        self.current_device = device
+        self._log(f"Device selected: {device}", "SUCCESS")
+        return device
+
+    def _device_control_menu(self, device: str):
+        """Show actions for a specific device."""
+        while True:
+            self._print_header(f"Control – {device}")
+            print(f"  Current frequency: {self.current_frequency} MHz")
+            print(f"  TX Power: {self.transmit_power}%")
+            print(f"  Modulation: {self.modulation}")
+            print()
+            print("  1. Transmit")
+            print("  2. Receive")
+            print("  3. Analyse")
+            print("  4. Set frequency")
+            print("  5. Set TX power")
+            print("  6. Set modulation")
+            print("  0. Back")
+            choice = input("\nChoice: ").strip()
+            if choice == "1":
+                self._start_transmission()
+            elif choice == "2":
+                freq = input(f"Frequency (MHz) [{self.current_frequency}]: ").strip()
+                if freq:
+                    self.current_frequency = freq
+                threading.Thread(target=self._sim_reception, args=(device, self.current_frequency), daemon=True).start()
+            elif choice == "3":
+                freq = input(f"Frequency (MHz) [{self.current_frequency}]: ").strip()
+                if freq:
+                    self.current_frequency = freq
+                threading.Thread(target=self._sim_analysis, args=(device, self.current_frequency), daemon=True).start()
+            elif choice == "4":
+                new_freq = input(f"New frequency (MHz) [{self.current_frequency}]: ").strip()
+                if new_freq:
+                    self.current_frequency = new_freq
+                    self._log(f"Frequency set to {self.current_frequency} MHz")
+            elif choice == "5":
+                self.transmit_power = self._input_int("TX Power (0-100): ", 0, 100)
+                self._log(f"TX power set to {self.transmit_power}%")
+            elif choice == "6":
+                mods = ["OOK", "FSK", "ASK", "PSK", "QAM", "GFSK", "OFDM"]
+                print("Modulation types:", ", ".join(mods))
+                new_mod = input(f"Select modulation [{self.modulation}]: ").strip().upper()
+                if new_mod in mods:
+                    self.modulation = new_mod
+                    self._log(f"Modulation set to {self.modulation}")
+                elif new_mod:
+                    print(f"{RED}Invalid modulation.{RESET}")
+            elif choice == "0":
+                break
+            else:
+                print(f"{RED}Invalid choice.{RESET}")
+
+    # ------------------------------------------------------------------
+    #  Quick Actions (Scan, Spectrum, Sweep)
+    # ------------------------------------------------------------------
+    def _scan_devices(self):
+        """Simulate device scanning."""
+        self._log("Scanning for nearby devices...")
+        sample = ["Smartphone · Galaxy", "Wi-Fi Router · TP-Link",
+                  "Bluetooth Speaker", "Keyless Entry · Toyota",
+                  "GPS Tracker", "Smart Lock", "Drone · Mavic"]
+        random.shuffle(sample)
+        for dev in sample[:random.randint(3, 6)]:
+            sig = random.randint(20, 95)
+            freq = random.choice(["433.92", "868", "2400", "5800"])
+            self._log(f"  ◈ {dev} · {sig}% · {freq} MHz")
+            time.sleep(0.35)
+        self._log("Scan complete.", "SUCCESS")
+
+    def _spectrum_analysis(self):
+        """Simulate spectrum sweep over fixed bands."""
+        self._log("Spectrum sweep...")
+        for freq in ["433", "868", "2400", "5800", "24200", "60500"]:
+            pwr = random.randint(-90, -20)
+            bar = "█" * max(1, (pwr + 90) // 8)
+            self._log(f"  {freq:>6} MHz  {pwr:>4} dBm  {bar}")
+            time.sleep(0.06)
+        self._log("Sweep done.", "SUCCESS")
+
+    def _sweep_band(self):
+        """Sweep around a centre frequency."""
+        freq = self.current_frequency
+        try:
+            cf = float(freq)
+        except ValueError:
+            cf = 2400.0
+        self._log(f"Sweeping around {cf} MHz...")
+        for offset in range(-80, 81, 20):
+            f = cf + offset
+            rssi = random.randint(-90, -20)
+            bar = "█" * max(1, (rssi + 90) // 5)
+            self._log(f"  {f:>8.1f} MHz  {rssi} dBm  {bar}")
+            time.sleep(0.08)
+        self._log("Sweep complete.", "SUCCESS")
+
+    # ------------------------------------------------------------------
+    #  Main Menu & Program Loop
+    # ------------------------------------------------------------------
+    def run(self):
+        """Main interactive CLI loop."""
+        print(f"\n{BOLD}{CYAN}◈◈◈ NEXUIO PRO – Advanced RF System ◈◈◈{RESET}")
+        print("CLI Edition – No GUI required")
+        while self.running:
+            self._print_header("Main Menu")
+            print("  1. Select device (by category)")
+            print("  2. Quick scan for devices")
+            print("  3. Spectrum analysis")
+            print("  4. Frequency sweep")
+            print("  5. Transmission control (start/stop)")
+            print("  6. Settings (power/modulation)")
+            print("  0. Exit")
+            choice = input("\nChoice: ").strip()
+            if choice == "1":
+                dev = self._select_device()
+                if dev:
+                    self._device_control_menu(dev)
+            elif choice == "2":
+                self._scan_devices()
+            elif choice == "3":
+                self._spectrum_analysis()
+            elif choice == "4":
+                self._sweep_band()
+            elif choice == "5":
+                sub = input("(s) start transmission / (t) stop / (b) back: ").strip().lower()
+                if sub == "s":
+                    self._start_transmission()
+                elif sub == "t":
+                    self._stop_transmission()
+            elif choice == "6":
+                print(f"\nCurrent TX Power: {self.transmit_power}%")
+                new_power = input("New TX Power (0-100, enter to skip): ").strip()
+                if new_power:
+                    try:
+                        p = int(new_power)
+                        if 0 <= p <= 100:
+                            self.transmit_power = p
+                            self._log(f"TX power set to {p}%")
+                        else:
+                            print(f"{RED}Must be 0-100{RESET}")
+                    except ValueError:
+                        print(f"{RED}Invalid number{RESET}")
+
+                print(f"Current Modulation: {self.modulation}")
+                mods = ["OOK", "FSK", "ASK", "PSK", "QAM", "GFSK", "OFDM"]
+                print("Available modulations:", ", ".join(mods))
+                new_mod = input("New modulation (enter to skip): ").strip().upper()
+                if new_mod in mods:
+                    self.modulation = new_mod
+                    self._log(f"Modulation set to {self.modulation}")
+                elif new_mod:
+                    print(f"{RED}Invalid modulation{RESET}")
+            elif choice == "0":
+                if self.is_transmitting:
+                    self._stop_transmission()
+                self._log("Shutting down NexuIO Pro. Goodbye!", "SUCCESS")
+                self.running = False
+            else:
+                print(f"{RED}Invalid choice.{RESET}")
+
+        print(f"{BOLD}{GREEN}System terminated.{RESET}")
+
+
+if __name__ == "__main__":
+    app = NexuIOCLI()
+    app.run()
